@@ -20,13 +20,42 @@ class Document extends Model
     ];
 
     /**
-     * Get documents similar to the given embedding
+     * Get documents similar to the given embedding using PGVector
      */
-    public static function findSimilar($queryEmbedding, $limit = 5)
+    public static function findSimilar(array $queryEmbedding, int $limit = 5): \Illuminate\Database\Eloquent\Collection
     {
-        return static::selectRaw('*, embedding <-> ? as distance', [json_encode($queryEmbedding)])
+        // Convert array to PostgreSQL vector format
+        $vectorString = '[' . implode(',', $queryEmbedding) . ']';
+        
+        return static::selectRaw('*, embedding <-> ?::vector as distance', [$vectorString])
             ->orderBy('distance')
             ->limit($limit)
             ->get();
+    }
+
+    /**
+     * Get documents similar to the given embedding with raw SQL for better performance
+     */
+    public static function findSimilarRaw(array $queryEmbedding, int $limit = 5): array
+    {
+        $vectorString = '[' . implode(',', $queryEmbedding) . ']';
+        
+        $results = \DB::select("
+            SELECT id, filename, content, embedding <-> ?::vector as distance, created_at, updated_at
+            FROM documents 
+            ORDER BY embedding <-> ?::vector 
+            LIMIT ?
+        ", [$vectorString, $vectorString, $limit]);
+        
+        return array_map(function($row) {
+            return [
+                'id' => $row->id,
+                'filename' => $row->filename,
+                'content' => $row->content,
+                'distance' => (float) $row->distance,
+                'created_at' => $row->created_at,
+                'updated_at' => $row->updated_at
+            ];
+        }, $results);
     }
 }

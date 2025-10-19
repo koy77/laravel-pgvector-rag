@@ -3,13 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Services\OpenAIService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Smalot\PdfParser\Parser;
-use OpenAI\Factory;
 
 class DocumentController extends Controller
 {
+    private OpenAIService $openAIService;
+
+    public function __construct(OpenAIService $openAIService)
+    {
+        $this->openAIService = $openAIService;
+    }
+
     public function index()
     {
         return view('upload');
@@ -46,7 +53,7 @@ class DocumentController extends Controller
             }
 
             // Generate embedding using OpenAI
-            $embedding = $this->generateEmbedding($content);
+            $embedding = $this->openAIService->generateEmbedding($content);
 
             // Save document to database
             Document::create([
@@ -70,23 +77,4 @@ class DocumentController extends Controller
         }
     }
 
-    private function generateEmbedding($text)
-    {
-        try {
-            $apiKey = config('openai.api_key');
-            if (!$apiKey) {
-                throw new \Exception('OpenAI API key not configured');
-            }
-            
-            $client = (new Factory())->withApiKey($apiKey)->make();
-            $response = $client->embeddings()->create([
-                'model' => 'text-embedding-3-small',
-                'input' => $text,
-            ]);
-
-            return $response->embeddings[0]->embedding;
-        } catch (\Exception $e) {
-            throw new \Exception('Failed to generate embedding: ' . $e->getMessage());
-        }
-    }
 }
