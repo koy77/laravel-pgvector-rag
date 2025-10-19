@@ -40,12 +40,16 @@ class Document extends Model
     {
         $vectorString = '[' . implode(',', $queryEmbedding) . ']';
         
+        // Use cosine similarity (1 - cosine distance) for better results
         $results = \DB::select("
-            SELECT id, filename, content, embedding <-> ?::vector as distance, created_at, updated_at
+            SELECT id, filename, content, 
+                   1 - (embedding <=> ?::vector) as similarity,
+                   embedding <-> ?::vector as distance,
+                   created_at, updated_at
             FROM documents 
-            ORDER BY embedding <-> ?::vector 
+            ORDER BY embedding <=> ?::vector 
             LIMIT ?
-        ", [$vectorString, $vectorString, $limit]);
+        ", [$vectorString, $vectorString, $vectorString, $limit]);
         
         return array_map(function($row) {
             return [
@@ -53,6 +57,7 @@ class Document extends Model
                 'filename' => $row->filename,
                 'content' => $row->content,
                 'distance' => (float) $row->distance,
+                'similarity' => (float) $row->similarity,
                 'created_at' => $row->created_at,
                 'updated_at' => $row->updated_at
             ];

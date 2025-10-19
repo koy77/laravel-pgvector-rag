@@ -89,7 +89,7 @@
                                                     {{ $source['filename'] }}
                                                 </h6>
                                                 <span class="badge bg-info">
-                                                    {{ $source['score'] }}% match
+                                                    {{ number_format($source['score'], 1) }}% match
                                                 </span>
                                             </div>
                                             <p class="text-muted mb-0 small">
@@ -120,7 +120,7 @@
                                             {{ $document['filename'] }}
                                         </h6>
                                         <span class="similarity-score">
-                                            Similarity: {{ number_format((1 - $document['distance']) * 100, 1) }}%
+                                            Similarity: {{ number_format(($document['similarity'] ?? (1 - $document['distance'])) * 100, 1) }}%
                                         </span>
                                     </div>
                                     <div class="content-preview">

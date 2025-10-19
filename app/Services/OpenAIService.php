@@ -16,7 +16,8 @@ class OpenAIService
     // RAG Prompt Templates
     private const SYSTEM_PROMPT = "You are a helpful AI assistant that answers questions based on the provided document context. 
 Use only the information from the provided documents to answer questions. If the information is not available in the documents, 
-say so clearly. Always cite your sources by referencing the document excerpts provided.";
+say so clearly. Always cite your sources by referencing the document excerpts provided. Look carefully through all the provided 
+context to find relevant information, even if it's mentioned briefly.";
 
     private const USER_PROMPT_TEMPLATE = "Context from relevant documents:
 {context}
@@ -26,7 +27,15 @@ Chat History:
 
 User Question: {question}
 
-Please provide a comprehensive answer based on the context above. Include specific references to the document excerpts that support your answer.";
+Please provide a comprehensive answer based on the context above. Look through all the provided document excerpts carefully 
+to find any relevant information. Pay special attention to:
+- Technology names, frameworks, and tools mentioned
+- Skills, experience, and expertise areas
+- Project descriptions and work experience
+- Any specific details that relate to the question
+
+Include specific references to the document excerpts that support your answer. If you find relevant information, explain it 
+clearly and cite the source document. If the information is mentioned in the context, please provide it even if it's brief.";
 
     public function __construct()
     {
@@ -148,9 +157,10 @@ Please provide a comprehensive answer based on the context above. Include specif
         $contextParts = [];
         
         foreach ($documents as $index => $document) {
-            $excerpt = $this->truncateText($document['content'], 500);
+            $excerpt = $this->truncateText($document['content'], 1500); // Increased context size
+            $similarity = $document['similarity'] ?? (1 - $document['distance']);
             $contextParts[] = "Document " . ($index + 1) . " (ID: {$document['id']}, Similarity: " . 
-                            number_format((1 - $document['distance']) * 100, 1) . "%):\n{$excerpt}\n";
+                            number_format($similarity * 100, 1) . "%):\n{$excerpt}\n";
         }
         
         return implode("\n---\n", $contextParts);
@@ -182,10 +192,11 @@ Please provide a comprehensive answer based on the context above. Include specif
         $sources = [];
         
         foreach ($documents as $document) {
+            $similarity = $document['similarity'] ?? (1 - $document['distance']);
             $sources[] = [
                 'id' => $document['id'],
                 'filename' => $document['filename'],
-                'score' => round((1 - $document['distance']) * 100, 1),
+                'score' => round($similarity * 100, 1),
                 'excerpt' => $this->truncateText($document['content'], 200)
             ];
         }
