@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use Illuminate\Http\Request;
-use OpenAI\Laravel\Facades\OpenAI;
+use OpenAI\Factory;
 
 class SearchController extends Controller
 {
@@ -42,12 +42,18 @@ class SearchController extends Controller
     private function generateEmbedding($text)
     {
         try {
-            $response = OpenAI::embeddings()->create([
+            $apiKey = config('openai.api_key');
+            if (!$apiKey) {
+                throw new \Exception('OpenAI API key not configured');
+            }
+            
+            $client = (new Factory())->withApiKey($apiKey)->make();
+            $response = $client->embeddings()->create([
                 'model' => 'text-embedding-3-small',
                 'input' => $text,
             ]);
 
-            return $response->data[0]->embedding;
+            return $response->embeddings[0]->embedding;
         } catch (\Exception $e) {
             throw new \Exception('Failed to generate embedding: ' . $e->getMessage());
         }

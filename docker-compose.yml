@@ -39,6 +39,16 @@ services:
     networks:
       - app-network
 
+  adminer:
+    image: adminer:latest
+    container_name: adminer_db
+    ports:
+      - "8081:8080"
+    depends_on:
+      - db
+    networks:
+      - app-network
+
 volumes:
   pgdata:
 

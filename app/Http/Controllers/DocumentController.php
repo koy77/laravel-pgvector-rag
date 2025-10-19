@@ -6,7 +6,7 @@ use App\Models\Document;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Smalot\PdfParser\Parser;
-use OpenAI\Laravel\Facades\OpenAI;
+use OpenAI\Factory;
 
 class DocumentController extends Controller
 {
@@ -28,7 +28,12 @@ class DocumentController extends Controller
             
             // Store the file temporarily
             $path = $file->store('temp');
-            $fullPath = storage_path('app/' . $path);
+            $fullPath = Storage::path($path);
+
+            // Debug: Check if file exists
+            if (!file_exists($fullPath)) {
+                throw new \Exception("Temporary file not found at: {$fullPath}");
+            }
 
             // Extract text from PDF
             $parser = new Parser();
@@ -68,12 +73,18 @@ class DocumentController extends Controller
     private function generateEmbedding($text)
     {
         try {
-            $response = OpenAI::embeddings()->create([
+            $apiKey = config('openai.api_key');
+            if (!$apiKey) {
+                throw new \Exception('OpenAI API key not configured');
+            }
+            
+            $client = (new Factory())->withApiKey($apiKey)->make();
+            $response = $client->embeddings()->create([
                 'model' => 'text-embedding-3-small',
                 'input' => $text,
             ]);
 
-            return $response->data[0]->embedding;
+            return $response->embeddings[0]->embedding;
         } catch (\Exception $e) {
             throw new \Exception('Failed to generate embedding: ' . $e->getMessage());
         }
