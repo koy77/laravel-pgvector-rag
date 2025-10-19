@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Document extends Model
 {
@@ -18,6 +19,18 @@ class Document extends Model
     protected $casts = [
         'embedding' => 'array',
     ];
+
+    protected $attributes = [
+        'embedding' => null,
+    ];
+
+    /**
+     * Get the chunks for this document
+     */
+    public function chunks(): HasMany
+    {
+        return $this->hasMany(DocumentChunk::class);
+    }
 
     /**
      * Get documents similar to the given embedding using PGVector

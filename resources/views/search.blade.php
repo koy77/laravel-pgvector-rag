@@ -118,6 +118,9 @@
                                         <h6 class="mb-1">
                                             <i class="fas fa-file-pdf me-2 text-danger"></i>
                                             {{ $document['filename'] }}
+                                            @if(isset($document['type']) && $document['type'] === 'chunk')
+                                                <small class="text-muted">(Chunk {{ $document['chunk_index'] }})</small>
+                                            @endif
                                         </h6>
                                         <span class="similarity-score">
                                             Similarity: {{ number_format(($document['similarity'] ?? (1 - $document['distance'])) * 100, 1) }}%
