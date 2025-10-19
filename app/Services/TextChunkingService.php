@@ -11,9 +11,15 @@ class TextChunkingService
     public function __construct()
     {
         // OpenAI text-embedding-3-small has 8192 token limit
-        $this->maxTokens = config('openai.max_context_length', 4000); // Safe margin
-        $this->overlapTokens = 200; // Overlap between chunks for context
+        // Use a much smaller limit to be safe and account for token estimation inaccuracy
+        $this->maxTokens = 3000; // Conservative limit
+        $this->overlapTokens = 100; // Overlap between chunks for context
         $this->maxChunkSize = $this->maxTokens - $this->overlapTokens;
+        
+        // Ensure maxChunkSize is never more than 2500 to be extra safe
+        if ($this->maxChunkSize > 2500) {
+            $this->maxChunkSize = 2500;
+        }
     }
 
     /**
@@ -21,54 +27,83 @@ class TextChunkingService
      */
     public function chunkText(string $text): array
     {
-        // First, try to split by paragraphs
-        $paragraphs = $this->splitByParagraphs($text);
-        
         $chunks = [];
+        $chunkIndex = 0;
+        
+        // Split by sentences first for better granularity
+        $sentences = $this->splitBySentences($text);
+        
         $currentChunk = '';
         $currentTokens = 0;
-        $chunkIndex = 0;
 
-        foreach ($paragraphs as $paragraph) {
-            $paragraphTokens = $this->estimateTokens($paragraph);
+        foreach ($sentences as $sentence) {
+            $sentenceTokens = $this->estimateTokens($sentence);
             
-            // If single paragraph is too large, split it by sentences
-            if ($paragraphTokens > $this->maxChunkSize) {
-                $sentences = $this->splitBySentences($paragraph);
+            // If single sentence is too large, split it by words
+            if ($sentenceTokens > $this->maxChunkSize) {
+                // Save current chunk if it exists
+                if (!empty(trim($currentChunk))) {
+                    $chunks[] = [
+                        'index' => $chunkIndex++,
+                        'content' => trim($currentChunk),
+                        'token_count' => $currentTokens
+                    ];
+                    $currentChunk = '';
+                    $currentTokens = 0;
+                }
                 
-                foreach ($sentences as $sentence) {
-                    $sentenceTokens = $this->estimateTokens($sentence);
+                // Split large sentence by words
+                $words = explode(' ', $sentence);
+                $currentWordChunk = '';
+                $currentWordTokens = 0;
+                
+                foreach ($words as $word) {
+                    $wordTokens = $this->estimateTokens($word . ' ');
                     
-                    if ($currentTokens + $sentenceTokens > $this->maxChunkSize && !empty($currentChunk)) {
+                    if ($currentWordTokens + $wordTokens > $this->maxChunkSize && !empty($currentWordChunk)) {
                         $chunks[] = [
                             'index' => $chunkIndex++,
-                            'content' => trim($currentChunk),
-                            'token_count' => $currentTokens
+                            'content' => trim($currentWordChunk),
+                            'token_count' => $currentWordTokens
                         ];
-                        
-                        // Start new chunk with overlap
-                        $currentChunk = $this->getOverlapText($currentChunk) . $sentence;
-                        $currentTokens = $this->estimateTokens($currentChunk);
+                        $currentWordChunk = $word . ' ';
+                        $currentWordTokens = $wordTokens;
                     } else {
-                        $currentChunk .= ($currentChunk ? ' ' : '') . $sentence;
-                        $currentTokens += $sentenceTokens;
+                        $currentWordChunk .= $word . ' ';
+                        $currentWordTokens += $wordTokens;
                     }
                 }
+                
+                // Add remaining word chunk
+                if (!empty(trim($currentWordChunk))) {
+                    $currentChunk = $currentWordChunk;
+                    $currentTokens = $currentWordTokens;
+                }
             } else {
-                // Check if adding this paragraph would exceed limit
-                if ($currentTokens + $paragraphTokens > $this->maxChunkSize && !empty($currentChunk)) {
+                // Check if adding this sentence would exceed limit
+                if ($currentTokens + $sentenceTokens > $this->maxChunkSize && !empty($currentChunk)) {
                     $chunks[] = [
                         'index' => $chunkIndex++,
                         'content' => trim($currentChunk),
                         'token_count' => $currentTokens
                     ];
                     
-                    // Start new chunk with overlap
-                    $currentChunk = $this->getOverlapText($currentChunk) . $paragraph;
-                    $currentTokens = $this->estimateTokens($currentChunk);
+                    // Start new chunk with overlap (but ensure it doesn't exceed maxChunkSize)
+                    $overlapText = $this->getOverlapText($currentChunk);
+                    $newChunk = $overlapText . $sentence;
+                    $newChunkTokens = $this->estimateTokens($newChunk);
+                    
+                    // If the new chunk with overlap is too large, start without overlap
+                    if ($newChunkTokens > $this->maxChunkSize) {
+                        $currentChunk = $sentence;
+                        $currentTokens = $sentenceTokens;
+                    } else {
+                        $currentChunk = $newChunk;
+                        $currentTokens = $newChunkTokens;
+                    }
                 } else {
-                    $currentChunk .= ($currentChunk ? "\n\n" : '') . $paragraph;
-                    $currentTokens += $paragraphTokens;
+                    $currentChunk .= ($currentChunk ? ' ' : '') . $sentence;
+                    $currentTokens += $sentenceTokens;
                 }
             }
         }
@@ -115,16 +150,17 @@ class TextChunkingService
     }
 
     /**
-     * Estimate token count (rough approximation: 1 token ≈ 4 characters)
+     * Estimate token count (more conservative estimation)
      */
     public function estimateTokens(string $text): int
     {
-        // More accurate estimation: count words and add some margin
+        // More conservative estimation to avoid token limit errors
         $wordCount = str_word_count($text);
         $charCount = strlen($text);
         
-        // Rough estimation: 1 token ≈ 0.75 words or 4 characters
-        $tokenEstimate = max($wordCount * 1.33, $charCount / 4);
+        // Conservative estimation: 1 token ≈ 0.6 words or 3 characters
+        // This gives us a safety margin
+        $tokenEstimate = max($wordCount * 1.67, $charCount / 3);
         
         return (int) ceil($tokenEstimate);
     }
