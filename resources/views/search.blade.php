@@ -25,6 +25,25 @@
                             required
                         >{{ old('query', $query ?? '') }}</textarea>
                     </div>
+                    
+                    <!-- Prebuilt Search Queries -->
+                    <div class="mb-3">
+                        <label class="form-label">Suggested Queries:</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuery('from where coffee production in Uganda comes from')">
+                                Coffee production in Uganda
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuery('how to grow coffee')">
+                                How to grow coffee
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuery('who produce coffee')">
+                                Who produce coffee
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuery('how much Vietnam produced In the 2024/25 season')">
+                                Vietnam coffee production 2024/25
+                            </button>
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="use_ai" name="use_ai" value="1" 
@@ -198,5 +217,9 @@ document.getElementById('searchForm').addEventListener('submit', function() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Searching...';
     btn.disabled = true;
 });
+
+function setQuery(query) {
+    document.getElementById('query').value = query;
+}
 </script>
 @endsection
